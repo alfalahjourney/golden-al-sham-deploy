@@ -24,6 +24,10 @@ services:
       NODE_ENV: production
       PORT: 5000                         # must match nginx backend_upstream
       FRONTEND_URLS: ${APP_ORIGIN:-http://localhost}   # CORS origin
+      # Auth cookie security. false = SameSite=Lax (works over plain HTTP, for
+      # the bare-IP deploy). Set to true ONLY when serving over HTTPS (domain
+      # + TLS) — then cookies become SameSite=None; Secure.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     networks: [app_network]
 
   # ── React Frontend (static bundle served by its own nginx) ───────────
