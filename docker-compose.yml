@@ -1,0 +1,60 @@
+# Orchestrates the 3 containers. Build contexts point at the two app repos,
+# which are cloned as sibling folders next to this file:
+#
+#   golden-al-sham/
+#     docker-compose.yml          <- this file (tracked in the deploy repo)
+#     nginx/nginx.conf            <- reverse proxy (tracked)
+#     .env                        <- IP / origin values (NOT committed)
+#     Golden-Al-Sham-Backend/     <- separate clone
+#     Golden-Al-Sham-frontend/    <- separate clone
+#
+# All ${VAR} values come from the root .env (see .env.example).
+services:
+
+  # ── Express Backend (connects to MongoDB Atlas via backend/.env) ─────
+  server:
+    build:
+      context: ./Golden-Al-Sham-Backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: always
+    env_file:
+      - ./Golden-Al-Sham-Backend/.env   # secrets: MONGO_URL, JWT_SECRET, etc.
+    environment:
+      NODE_ENV: production
+      PORT: 5000                         # must match nginx backend_upstream
+      FRONTEND_URLS: ${APP_ORIGIN:-http://localhost}   # CORS origin
+    networks: [app_network]
+
+  # ── React Frontend (static bundle served by its own nginx) ───────────
+  client:
+    build:
+      context: ./Golden-Al-Sham-frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the bundle at build time (Vite). Both point at the
+        # same public origin (http://<IP> or https://<domain>).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_URL: ${VITE_API_BASE_URL}
+    container_name: frontend
+    restart: always
+    networks: [app_network]
+
+  # ── Nginx Reverse Proxy (the only thing exposed) ─────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"   # reserved for HTTPS when a domain is added
+    volumes:
+      # No ":Z" — that's SELinux (Fedora) only and errors on the Ubuntu
+      # server. For local Fedora dev, append ",Z" to this line.
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [client, server]
+    networks: [app_network]
+
+networks:
+  app_network:
+    driver: bridge

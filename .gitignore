@@ -1,0 +1,12 @@
+# ── App repos are cloned separately (each has its own GitHub repo) ──────
+# This deploy repo only tracks the orchestration files at the root.
+Golden-Al-Sham-Backend/
+Golden-Al-Sham-frontend/
+
+# ── Secrets / local env (never commit) ─────────────────────────────────
+.env
+
+# ── Misc ───────────────────────────────────────────────────────────────
+.DS_Store
+node_modules/
+*.log
