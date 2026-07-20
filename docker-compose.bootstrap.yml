@@ -1,0 +1,16 @@
+# ── Bootstrap override — used ONCE to obtain the first TLS certificate ──
+# Swaps the HTTPS nginx.conf (which needs certs that don't exist yet) for
+# nginx-bootstrap.conf (plain HTTP + ACME challenge). Usage:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d
+#   ...run the certbot command (see README)...
+#   docker compose up -d          # back to the real HTTPS nginx.conf
+#
+# Compose de-duplicates volume mounts by their container path, so listing
+# nginx-bootstrap.conf at /etc/nginx/nginx.conf overrides the base mount.
+services:
+  nginx:
+    volumes:
+      - ./nginx/nginx-bootstrap.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro

@@ -74,4 +74,49 @@ docker compose up -d --build client
 ```
 
 For a domain, also set `server_name` in `nginx/nginx.conf` and add a
-`listen 443 ssl;` block via Certbot.
+`listen 443 ssl;` block via Certbot — see below.
+
+## Enabling HTTPS (domain + Let's Encrypt)
+
+`nginx.conf` already serves HTTPS for **goldenalsham.com**, but nginx won't
+start until the certificate exists. Obtain it once with the bootstrap config,
+then switch to the real one.
+
+Prereqs: DNS A records for `goldenalsham.com` and `www` point at the Elastic
+IP (`dig +short goldenalsham.com` returns it), and ports **80 + 443** are open
+in the security group.
+
+```bash
+cd ~/golden-al-sham
+mkdir -p certbot/conf certbot/www
+
+# 1. Start on plain HTTP with the ACME challenge served (bootstrap nginx)
+docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d --build
+
+# 2. Obtain the certificate (edit the email)
+docker run --rm \
+  -v ~/golden-al-sham/certbot/conf:/etc/letsencrypt \
+  -v ~/golden-al-sham/certbot/www:/var/www/certbot \
+  certbot/certbot certonly --webroot -w /var/www/certbot \
+  -d goldenalsham.com -d www.goldenalsham.com \
+  --email you@example.com --agree-tos --no-eff-email
+
+# 3. Set .env for HTTPS
+#   VITE_API_BASE_URL=https://goldenalsham.com
+#   APP_ORIGIN=https://goldenalsham.com
+#   COOKIE_SECURE=true
+
+# 4. Switch to the real HTTPS nginx + rebuild the frontend for the new URL
+docker compose up -d --build
+```
+
+Open https://goldenalsham.com — padlock should show and http:// redirects.
+
+### Auto-renewal (certs expire every 90 days)
+
+```bash
+crontab -e
+```
+```
+0 3 * * * docker run --rm -v ~/golden-al-sham/certbot/conf:/etc/letsencrypt -v ~/golden-al-sham/certbot/www:/var/www/certbot certbot/certbot renew --quiet && docker compose -f ~/golden-al-sham/docker-compose.yml exec -T nginx nginx -s reload
+```
